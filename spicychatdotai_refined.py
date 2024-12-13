@@ -168,7 +168,120 @@ def get_nsfw_policy():
 
     return {"nsfw_policy": policies}
 
-# ... [get_pricing_info function and related utility functions incoming!]
+# *********************************************************************************************************************************
+def clean_plan_data(plan_str, pricing_type="month"):
+    """Cleans and organizes plan data from the input string."""
+    plans = {}
+
+    # Split the input by 'Subscribe' to capture each pricing tier
+    tier_sections = plan_str.split("Subscribe")
+
+    # Define tier prices dynamically
+    tier_prices = {
+        "Free": "$ 0.00/ month" if pricing_type == "month" else "$ 0.00/ year",
+        "Get a Taste": "$ 5.00/ month" if pricing_type == "month" else "$ 39.95/ year",
+        "True Supporter": "$ 14.95/ month" if pricing_type == "month" else "$ 115.00/ year",
+        "I'm All In": "$ 24.95/ month" if pricing_type == "month" else "$ 175.00/ year",
+    }
+
+    for section in tier_sections:
+        section = section.strip()
+        if section:
+            # Match tier name dynamically using known tier names
+            tier_name = next((name for name in tier_prices if f" {name} " in section), None)
+            if not tier_name:
+                continue
+
+            # Extract the price based on the tier name
+            price = tier_prices.get(tier_name, "Unknown")
+
+            # Extract features dynamically
+            features = extract_features(section)
+
+            # Add the tier's data to the dictionary
+            plans[tier_name] = {
+                "price": price,
+                "features": features
+            }
+
+    return plans
+
+def extract_features(tier_section):
+    """Extracts features from the section of the tier string."""
+    features = []
+
+    # Define patterns and their feature names for dynamic extraction
+    feature_patterns = {
+        r"Unlimited Messages": "Unlimited Messages",
+        r"Full Library Of Chatbots": "Full Library Of Chatbots",
+        r"NSFW Content": "NSFW Content",
+        r"Create Your Own Character": "Create Your Own Character",
+        r"Save Chats, Favourite Chatbots": "Save Chats, Favourite Chatbots",
+        r"No Ads": "No Ads",
+        r"Skip the Waiting Lines": "Skip the Waiting Lines",
+        r"Memory Manager": "Memory Manager",
+        r"User Personas - upto (\\d+)": "User Personas - up to {0}",
+        r"4K Context \(Memory\)": "4K Context (Memory)",
+        r"Semantic Memory 2\.0": "Semantic Memory 2.0",
+        r"Longer Responses": "Longer Responses",
+        r"Conversation Images": "Conversation Images",
+        r"Access to additional Models": "Access to additional Models",
+        r"Priority Generation Queue": "Priority Generation Queue",
+        r"Access to advanced models": "Access to advanced models",
+        r"Conversation Images on private Chatbots": "Conversation Images on private Chatbots",
+        r"Up to 16K Context \(Memory\)": "Up to 16K Context (Memory)",
+    }
+
+    # Check for matching patterns in the section
+    for pattern, feature_name in feature_patterns.items():
+        match = re.search(pattern, tier_section)
+        if match:
+            features.append(feature_name.format(*match.groups()))
+
+    return features
+
+def get_pricing_info():
+    """Extracts and organizes pricing information from the website."""
+    driver = webdriver.Safari()
+    url = "https://spicychat.ai/subscribe"
+
+    try:
+        driver.get(url)
+
+        # Get monthly pricing info
+        monthly_pricing_info = WebDriverWait(driver, 10).until(
+            EC.presence_of_element_located((By.CSS_SELECTOR, ".flex.justify-undefined.items-undefined.flex-wrap.justify-center.items-end"))
+        ).text
+
+        # Click on the annual plans button
+        annual_plans_button = WebDriverWait(driver, 10).until(
+            EC.element_to_be_clickable((By.XPATH, "//button[@data-key='annual_plans']"))
+        )
+        annual_plans_button.click()
+
+        # Get annual pricing info after the annual plans button is clicked
+        annual_pricing_info = WebDriverWait(driver, 10).until(
+            EC.presence_of_element_located((By.CSS_SELECTOR, ".flex.justify-undefined.items-undefined.flex-wrap.justify-center.items-end"))
+        ).text
+
+        # Clean up the pricing data for both monthly and annual plans
+        monthly_data = clean_plan_data(monthly_pricing_info, pricing_type="month")
+        annual_data = clean_plan_data(annual_pricing_info, pricing_type="year")
+
+        # Combine and format the pricing information
+        pricing_info = {
+            "monthly subscription info": monthly_data,
+            "annual subscription info": annual_data,
+        }
+
+        return {"pricing": pricing_info}
+
+    except Exception as e:
+        return {"error": str(e)}
+
+    finally:
+        driver.quit()
+# *********************************************************************************************************************************
 
 def get_useful_links():
     """
